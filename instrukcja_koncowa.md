@@ -346,6 +346,13 @@ W `instrukcja.md` słowo „passthrough” oznacza zapis strumienia bez ponowneg
 
 ---
 
+### 5.10 Zdalne sterowanie (wersja 3.5)
+
+OSC (UDP), MIDI i moduł Bitfocus Companion sterują tymi samymi poleceniami co przyciski okna: REC / STOP / PAUSE / SPLIT / SELECT
+kanału, te same polecenia dla zaznaczonych, zaznaczanie (wszystkie / żadne / odwróć) i widok (2×2, 3×3, 4×4, lista).
+Informacja zwrotna: stan kanałów, liczniki, widok. Ścieżki OSC, mapa nut MIDI, akcje / feedbacki / zmienne / presety Companion:
+`docs/Remote-Control.md`. Ustawienia: Settings → Remote control; domyślnie wyłączone.
+
 ## 6. Plan wersji
 
 Każda wersja: działający program, commit, tag, push. Kryterium = to, co da się sprawdzić na maszynie deweloperskiej.

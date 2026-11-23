@@ -1,6 +1,6 @@
 # <img src="docs/icon.png" width="48" align="top" alt=""> ISO Recorder
 
-![ISO Recorder 3.3](docs/splash.png)
+![ISO Recorder](docs/splash.png)
 
 **ISO Recorder is a multichannel ISO recorder and signal gateway for Windows.** It ingests up to 16 sources — SDI/HDMI,
 NDI, SRT, RTSP, WebRTC, cameras and screens — shows them on one multiview, records every source to its own file with
@@ -132,6 +132,14 @@ using a dedicated gateway.
   fills up.
 - Channel-list autosave, event log on disk.
 
+### Remote control
+
+- **OSC** over UDP (default port 8000): REC / STOP / PAUSE / SPLIT / SELECT of every channel, the same for the selected channels,
+  select all / none / invert, and the view (2×2, 3×3, 4×4, list). Status comes back as standard `/isorec/...` paths.
+- **MIDI**: a note map for the same commands, with button lights sent back to the controller.
+- **Stream Deck** through a **Bitfocus Companion** module (included): actions, feedbacks, variables and ready-made button presets.
+- Full reference: [docs/Remote-Control.md](docs/Remote-Control.md).
+
 ### Interface
 
 - Multiview with tally-style borders, audio meters, recording time and live-output markers; list view with sortable
@@ -209,7 +217,9 @@ scripts\installer.ps1  # builds the installer from that package (needs Inno Setu
 
 ## Documentation
 
-The project documents are written in Polish:
+- [docs/Remote-Control.md](docs/Remote-Control.md) — OSC, MIDI and Stream Deck / Companion reference (English).
+
+The other project documents are written in Polish:
 
 - [CHANGELOG.md](CHANGELOG.md) — version history,
 - [instrukcja_koncowa.md](instrukcja_koncowa.md) — specification and how the mechanisms work,

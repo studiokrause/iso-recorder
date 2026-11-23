@@ -30,6 +30,8 @@
 #include "app/Inspector.h"
 #include "app/MainWindow.h"
 #include "app/PreviewDialog.h"
+#include "app/RemoteControl.h"
+#include "core/AppSettings.h"
 #include "app/Theme.h"
 #include "app/Widgets.h"
 #include "core/ChannelManager.h"
@@ -118,7 +120,7 @@ int main(int argc, char* argv[]) {
     QApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
     const QStringList args = app.arguments();
     // Uruchomienie sterowane argumentami (zrzuty, testy) konczy sie samo - bez pytan o zapis listy.
-    for (const char* a : {"--screenshot", "--save-list", "--save-list-real", "--rec-test", "--shot-big", "--shot-disks", "--drag-test", "--shot-combo", "--shot-log", "--shot-settings", "--list-ndi", "--shot-rename", "--quit-after", "--recover"})
+    for (const char* a : {"--screenshot", "--save-list", "--save-list-real", "--rec-test", "--shot-big", "--shot-disks", "--drag-test", "--shot-combo", "--shot-log", "--shot-settings", "--list-ndi", "--shot-rename", "--quit-after", "--recover", "--remote-selftest"})
         if (args.contains(QLatin1String(a))) app.setProperty("automation", true);
 
     // Ekran powitalny: 2,5 s przy zwyklym uruchomieniu. Nie pojawia sie w trybach testowych i narzedziowych.
@@ -207,10 +209,15 @@ int main(int argc, char* argv[]) {
         // Log zdarzen: wszystkie komunikaty programu; do pliku tylko przy zwyklym uruchomieniu (testy - sama pamiec).
         QObject::connect(&manager, &ChannelManager::notice, &manager, [](const QString& text) { EventLog::add(text); });
         // Zmiana jezyka buduje okno od nowa; kanaly i ich pipeline'y zostaja nietkniete.
+        // Zdalne sterowanie (OSC / MIDI): jedno na caly program, przezywa przebudowe okna przy zmianie jezyka.
+        RemoteControl remote(&manager);
+        QObject::connect(&remote, &RemoteControl::notice, &manager, [](const QString& text) { EventLog::add(text); });
         std::unique_ptr<MainWindow> w;
         std::function<void()> makeWindow = [&] {
             MainWindow* old = w.release();
             w = std::make_unique<MainWindow>(&manager);
+            remote.setWindow(w.get());
+            QObject::connect(w.get(), &MainWindow::settingsSaved, &remote, [&remote] { remote.apply(AppSettings::remoteConfig()); });
             QObject::connect(w.get(), &MainWindow::languageRequested, &manager, [&](const QString& code) {
                 Lang::set(code);
                 settings.setValue(QStringLiteral("language"), Lang::current());
@@ -708,6 +715,39 @@ int main(int argc, char* argv[]) {
                 QTimer::singleShot(200, [] { QApplication::quit(); });
             });
         }
+        // Zdalne sterowanie: zwykle uruchomienie bierze ustawienia z okna Settings; tryby testowe tylko z osobnym profilem
+        // (ISOREC_PROFILE) albo z argumentow:  --osc-port N [--osc-fb host:port] [--no-reply]  i
+        // --midi-in "nazwa" --midi-out "nazwa" [--midi-channel N];  --remote-selftest = samokontrola kodeka OSC, mapy MIDI i polecen
+        {
+            AppSettings::RemoteConfig rcfg;
+            const bool fromSettings = !testMode || !qEnvironmentVariableIsEmpty("ISOREC_PROFILE");
+            if (fromSettings) rcfg = AppSettings::remoteConfig();
+            if (const int port = argAfter("--osc-port").toInt(); port > 0) {
+                rcfg.osc = true;
+                rcfg.oscPort = port;
+            }
+            if (const QString fb = argAfter("--osc-fb"); !fb.isEmpty() && fb.contains(QLatin1Char(':'))) {
+                rcfg.fbHost = fb.section(QLatin1Char(':'), 0, 0);
+                rcfg.fbPort = fb.section(QLatin1Char(':'), 1).toInt();
+            }
+            if (args.contains(QStringLiteral("--no-reply"))) rcfg.reply = false;
+            if (!argAfter("--midi-in").isEmpty() || !argAfter("--midi-out").isEmpty()) {
+                rcfg.midi = true;
+                rcfg.midiIn = argAfter("--midi-in");
+                rcfg.midiOut = argAfter("--midi-out");
+                rcfg.midiChannel = argAfter("--midi-channel").toInt();
+            }
+            remote.apply(rcfg);
+        }
+        if (args.contains(QStringLiteral("--remote-selftest")))
+            QTimer::singleShot(2500, &manager, [&remote] {
+                QString report;
+                const int bad = remote.selfTest(&report);
+                const QByteArray utf8 = report.toUtf8() + "errors=" + QByteArray::number(bad) + "\n";
+                fwrite(utf8.constData(), 1, size_t(utf8.size()), stdout);
+                fflush(stdout);
+                QApplication::exit(bad);
+            });
         if (const QString view = argAfter("--view"); !view.isEmpty()) w->setView(view == QLatin1String("list") ? 0 : view.toInt());
         const int tabAt = int(args.indexOf(QStringLiteral("--tab")));       // 0 Input, 1 Output, 2 Scheduler
         if (tabAt >= 0 && tabAt + 1 < args.size()) w->inspector()->setTab(args.at(tabAt + 1).toInt());

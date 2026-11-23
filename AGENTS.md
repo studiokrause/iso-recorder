@@ -1,6 +1,6 @@
 # ISO Recorder — stan projektu i instrukcje dla kolejnego modelu
 
-Ten plik jest punktem wejścia. Przeczytaj go w całości, zanim cokolwiek zmienisz. Stan na 2026‑11‑12, wersja **3.4**. Wydania od 2.0 są publikowane jako Release na GitHubie.
+Ten plik jest punktem wejścia. Przeczytaj go w całości, zanim cokolwiek zmienisz. Stan na 2026‑11‑12, wersja **3.5**. Wydania od 2.0 są publikowane jako Release na GitHubie.
 
 ## 1. Co to jest
 
@@ -23,7 +23,7 @@ z tłumaczeniami PL, DE, ES, IT, FR.
 | `mockup/`, `interfejs.png` | wzorzec wyglądu |
 | `docs/zrzut_<wersja>.png` | zrzut okna na każdą wersję |
 
-## 3. Co działa (3.4)
+## 3. Co działa (3.5)
 
 - **Wejścia**: generator testowy, ekran i pojedyncze okno (`d3d11screencapturesrc`), kamera z wyborem rozmiaru obrazu
   (`mfvideosrc`), SRT, RTSP i NDI (`fallbacksrc`; NDI: lista źródeł z sieci w polu Device); dźwięk: sygnał testowy, cisza, dźwięk systemowy (loopback) i wejścia
@@ -31,6 +31,12 @@ z tłumaczeniami PL, DE, ES, IT, FR.
 - **Nagrywanie**: H.264 + AAC do MKV lub MPEG‑TS; enkoder wybierany próbą (NVENC → Quick Sync → AMF → MF → OpenH264);
   split ręczny i automatyczny; pauza w tym samym pliku; plik opisu `.json` obok nagrania.
 - **Grupa kanałów**: wspólna chwila startu, pauzy i stopu (dokładność do jednej klatki).
+- **Zdalne sterowanie (3.5)**: `src/app/RemoteControl.*` (OSC UDP przez QUdpSocket, MIDI przez winmm, jeden wykonawca poleceń
+  `runCommand`), kodek `src/core/Osc.*`, ustawienia `AppSettings::RemoteConfig`, widok `MainWindow::view()/viewChanged`.
+  Klienci OSC dostają stan na adres nadawcy (wygasają po 20 s). MIDI tylko Note On (CC pomijane celowo — suwaki).
+  Moduł Companion w `companion/isorecorder` (Node, API 2.x, `~2.1.3`), dokumentacja `docs/Remote-Control.md`.
+  Testy: `--remote-selftest`, `tests\osc_test.ps1`, `npm test` i `node test/e2e.mjs` w module. Niesprawdzone: prawdziwy Companion,
+  Stream Deck, fizyczny kontroler MIDI. Port OSC bez hasła — dokumentacja ostrzega.
 - **Wyjście na żywo** kanału, równolegle do nagrania: NDI albo SRT; można przełączać w trakcie nagrywania.
 - **Zanik sygnału sieciowego**: do wyboru — nagranie trwa (ostatnia klatka → czarny obraz), pauza albo nowa część;
   automatyczne ponowne łączenie.

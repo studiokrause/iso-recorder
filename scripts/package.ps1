@@ -37,6 +37,12 @@ $gpl = 'gsta52dec.dll', 'gstdtsdec.dll', 'gstdvdread.dll', 'gstresindvd.dll', 'g
 foreach ($f in $gpl) { Remove-Item "$dist\gstreamer-1.0\$f" -ErrorAction SilentlyContinue }
 foreach ($f in 'x264-*.dll', 'x265.dll', 'dca-*.dll', 'dvdread-*.dll', 'dvdnav-*.dll', 'a52-*.dll') { Remove-Item "$dist\$f" -ErrorAction SilentlyContinue }
 
+# Zdalne sterowanie: dokumentacja i modul Bitfocus Companion (paczka powstaje poleceniem npm run package w companion\isorecorder)
+New-Item -ItemType Directory -Force "$dist\docs", "$dist\companion" | Out-Null
+Copy-Item "$root\docs\Remote-Control.md" "$dist\docs"
+$module = Get-ChildItem "$root\companion\isorecorder\isorecorder-*.tgz" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1
+if ($module) { Copy-Item $module.FullName "$dist\companion" } else { Write-Warning 'Brak companion\isorecorder\isorecorder-*.tgz - uruchom npm run package w tym katalogu.' }
+
 $version = (Select-String -Path "$root\CMakeLists.txt" -Pattern 'APP_VERSION_SHORT "([^"]+)"').Matches[0].Groups[1].Value
 Set-Content "$dist\WERSJA.txt" "ISO Recorder $version`r`nZbudowano: $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -Encoding utf8
 $size = (Get-ChildItem $dist -Recurse -File | Measure-Object Length -Sum).Sum

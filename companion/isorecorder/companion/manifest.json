@@ -1,0 +1,27 @@
+{
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"type": "connection",
+	"id": "isorecorder",
+	"name": "isorecorder",
+	"shortname": "isorec",
+	"description": "Control ISO Recorder: start, stop, pause and split recording of each channel or of the selected channels, select channels, switch the view, and show the status on Stream Deck buttons",
+	"version": "3.5.0",
+	"license": "MIT",
+	"repository": "git+https://github.com/studiokrause/iso-recorder.git",
+	"bugs": "https://github.com/studiokrause/iso-recorder/issues",
+	"maintainers": [
+		{
+			"name": "Studio Krause"
+		}
+	],
+	"runtime": {
+		"type": "node26",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../src/main.js"
+	},
+	"legacyIds": [],
+	"manufacturer": "Studio Krause",
+	"products": ["ISO Recorder"],
+	"keywords": ["recorder", "ISO", "recording", "OSC", "SRT", "NDI"]
+}

@@ -70,4 +70,32 @@ QString AppSettings::renameOnSource() {
 }
 void AppSettings::setRenameOnSource(const QString& mode) { store().setValue(QStringLiteral("renameOnSource"), mode); }
 
+AppSettings::RemoteConfig AppSettings::remoteConfig() {
+    QSettings s = store();
+    RemoteConfig c;
+    c.osc = s.value(QStringLiteral("remote/osc"), c.osc).toBool();
+    c.oscPort = qBound(1, s.value(QStringLiteral("remote/oscPort"), c.oscPort).toInt(), 65535);
+    c.reply = s.value(QStringLiteral("remote/reply"), c.reply).toBool();
+    c.fbHost = s.value(QStringLiteral("remote/fbHost")).toString();
+    c.fbPort = qBound(1, s.value(QStringLiteral("remote/fbPort"), c.fbPort).toInt(), 65535);
+    c.midi = s.value(QStringLiteral("remote/midi"), c.midi).toBool();
+    c.midiIn = s.value(QStringLiteral("remote/midiIn")).toString();
+    c.midiOut = s.value(QStringLiteral("remote/midiOut")).toString();
+    c.midiChannel = qBound(0, s.value(QStringLiteral("remote/midiChannel"), c.midiChannel).toInt(), 16);
+    return c;
+}
+
+void AppSettings::setRemoteConfig(const RemoteConfig& c) {
+    QSettings s = store();
+    s.setValue(QStringLiteral("remote/osc"), c.osc);
+    s.setValue(QStringLiteral("remote/oscPort"), c.oscPort);
+    s.setValue(QStringLiteral("remote/reply"), c.reply);
+    s.setValue(QStringLiteral("remote/fbHost"), c.fbHost.trimmed());
+    s.setValue(QStringLiteral("remote/fbPort"), c.fbPort);
+    s.setValue(QStringLiteral("remote/midi"), c.midi);
+    s.setValue(QStringLiteral("remote/midiIn"), c.midiIn);
+    s.setValue(QStringLiteral("remote/midiOut"), c.midiOut);
+    s.setValue(QStringLiteral("remote/midiChannel"), c.midiChannel);
+}
+
 void AppSettings::setSplitFolderTemplate(const QString& tmpl) { store().setValue(QStringLiteral("splitFolderTemplate"), tmpl.trimmed()); }

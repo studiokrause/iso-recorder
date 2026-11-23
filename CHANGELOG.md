@@ -2,6 +2,25 @@
 
 Numeracja: 0.1, 0.2, … (plan wersji: `instrukcja_koncowa.md`, rozdz. 6).
 
+## 3.5
+
+- **Ekran powitalny 3.5** (nowa grafika).
+- **Zdalne sterowanie: OSC, MIDI i Stream Deck (Bitfocus Companion).** Settings → Remote control (domyślnie wyłączone).
+  - **OSC po UDP** (port domyślnie 8000): `/isorec/ch/N/rec|stop|pause|split|select[/on|/off]` dla kanałów 1–16,
+    `/isorec/selected/rec|stop|pause|split` dla zaznaczonych, `/isorec/select/all|none|invert`,
+    `/isorec/view/2x2|3x3|4x4|list`, `/isorec/status`. Argument 0 (zwolnienie przycisku) jest ignorowany.
+  - **Informacja zwrotna**: stan wszystkich 16 kanałów (nazwa, stan REC/PAUSED/PREVIEW/…, czas, zaznaczenie, źródło),
+    liczniki, widok i wersja — wysyłane tylko przy zmianie, na adres i port nadawcy polecenia (klient wygasa po 20 s,
+    utrzymuje go `/isorec/status`), opcjonalnie także na stały adres.
+  - **MIDI** (winmm): mapa nut 0–90 (REC, STOP, PAUSE, SPLIT, SELECT kanałów, polecenia zaznaczonych, zaznaczanie, widok),
+    wejście i wyjście MIDI — przyciski kontrolera świecą zgodnie ze stanem. Tylko Note On; kontrolery CC (suwaki, gałki)
+    są świadomie pomijane.
+  - **Moduł Bitfocus Companion** (`companion\isorecorder`, paczka `isorecorder-3.5.0.tgz`, API modułów 2.x, `@companion-module/base ~2.1.3`):
+    akcje, feedbacki, zmienne (`chN_name`, `chN_state`, `chN_time`, …) i gotowe presety przycisków dla Stream Decka.
+  - Dokumentacja: `docs\Remote-Control.md` (w paczce i w Release).
+  - Testy: `--remote-selftest`, `tests\osc_test.ps1` (prawdziwe pakiety UDP), `companion\isorecorder	est` (kodek, presety, akcje,
+    `e2e.mjs` z programem). **Nie sprawdzono** w prawdziwym Companion, na fizycznym Stream Decku ani z fizycznym kontrolerem MIDI.
+
 ## 3.4
 
 - **Ekran powitalny 3.4** (nowa grafika).

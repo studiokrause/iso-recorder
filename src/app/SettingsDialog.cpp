@@ -9,9 +9,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QScreen>
+#include <QScrollArea>
+#include <QSpinBox>
 #include <QStandardItemModel>
 #include <QVBoxLayout>
 
+#include "app/RemoteControl.h"
 #include "core/AppSettings.h"
 #include "core/Lang.h"
 #include "media/Devices.h"
@@ -95,9 +99,21 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     setStyleSheet(QStringLiteral(
         "QLineEdit, QComboBox { background:#1a1a1a; border:1px solid #3a3a3a; border-radius:2px; padding:2px 8px; min-height:22px; }"
         "QComboBox QAbstractItemView { background:#1a1a1a; border:1px solid #3a3a3a; selection-background-color:#4a4a4a; }"));
-    auto* v = new QVBoxLayout(this);
+    // Okno ma duzo pozycji: tresc przewija sie, przyciski OK / Cancel zostaja na dole.
+    auto* outer = new QVBoxLayout(this);
+    outer->setContentsMargins(0, 0, 0, 10);
+    auto* scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto* content = new QWidget;
+    scroll->setWidget(content);
+    outer->addWidget(scroll, 1);
+    auto* v = new QVBoxLayout(content);
     v->setContentsMargins(18, 10, 18, 14);
     v->setSpacing(6);
+    const QRect avail = screen() ? screen()->availableGeometry() : QRect(0, 0, 1280, 800);
+    resize(660, qMin(960, avail.height() - 90));
 
     // ---- domyslne parametry nagrywania
     v->addWidget(heading(T("Default recording settings")));
@@ -257,11 +273,57 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     row(T("After a source change"), m_rename);
     v->addLayout(g);
 
-    v->addSpacing(8);
+    // ---- zdalne sterowanie
+    v->addWidget(heading(T("Remote control")));
+    v->addWidget(note(T("Control recording from OSC software, a MIDI controller or Bitfocus Companion (Stream Deck). "
+                        "The paths, the MIDI note map and the Companion module are described in the documentation. Applied when you press OK.")));
+    g = new QGridLayout;
+    g->setColumnStretch(1, 1);
+    g->setHorizontalSpacing(12);
+    r = 0;
+    const AppSettings::RemoteConfig rc = AppSettings::remoteConfig();
+    m_osc = new QCheckBox(T("Listen for OSC commands (UDP)"));
+    m_osc->setChecked(rc.osc);
+    row(T("OSC"), m_osc);
+    m_oscPort = new QSpinBox;
+    m_oscPort->setRange(1, 65535);
+    m_oscPort->setValue(rc.oscPort);
+    row(T("OSC port"), m_oscPort, T("The port on which the program listens for commands."));
+    m_reply = new QCheckBox(T("Send status back to the sender of a command"));
+    m_reply->setChecked(rc.reply);
+    row(T("Feedback"), m_reply, T("Bitfocus Companion and most OSC controllers expect the status on the address the command came from."));
+    m_fbHost = new QLineEdit(rc.fbHost);
+    m_fbHost->setPlaceholderText(T("empty = none"));
+    row(T("Also send status to"), m_fbHost, T("Optional fixed address (IP or name) that always receives the status, for example a TouchOSC tablet."));
+    m_fbPort = new QSpinBox;
+    m_fbPort->setRange(1, 65535);
+    m_fbPort->setValue(rc.fbPort);
+    row(T("Status port"), m_fbPort);
+    m_midi = new QCheckBox(T("Use MIDI"));
+    m_midi->setChecked(rc.midi);
+    row(T("MIDI"), m_midi);
+    m_midiIn = new QComboBox;
+    m_midiIn->addItem(T("None"), QString());
+    for (const QString& n : RemoteControl::midiInputs()) m_midiIn->addItem(n, n);
+    m_midiIn->setCurrentIndex(qMax(0, m_midiIn->findData(rc.midiIn)));
+    row(T("MIDI input"), m_midiIn);
+    m_midiOut = new QComboBox;
+    m_midiOut->addItem(T("None"), QString());
+    for (const QString& n : RemoteControl::midiOutputs()) m_midiOut->addItem(n, n);
+    m_midiOut->setCurrentIndex(qMax(0, m_midiOut->findData(rc.midiOut)));
+    row(T("MIDI output"), m_midiOut, T("Receives notes that light the buttons of the controller (recording, selected, view)."));
+    m_midiChannel = new QSpinBox;
+    m_midiChannel->setRange(0, 16);
+    m_midiChannel->setSpecialValueText(T("Any"));
+    m_midiChannel->setValue(rc.midiChannel);
+    row(T("MIDI channel"), m_midiChannel);
+    v->addLayout(g);
+
     auto* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    box->setContentsMargins(18, 0, 18, 0);
     connect(box, &QDialogButtonBox::accepted, this, [this] { save(); accept(); });
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    v->addWidget(box);
+    outer->addWidget(box);
 }
 
 void SettingsDialog::save() {
@@ -288,4 +350,15 @@ void SettingsDialog::save() {
     AppSettings::setMonitorDevice(m_monitor->currentData().toString());
     AppSettings::setSplitFolderTemplate(m_folderTemplate->text());
     AppSettings::setRenameOnSource(m_rename->currentData().toString());
+    AppSettings::RemoteConfig rc;
+    rc.osc = m_osc->isChecked();
+    rc.oscPort = m_oscPort->value();
+    rc.reply = m_reply->isChecked();
+    rc.fbHost = m_fbHost->text().trimmed();
+    rc.fbPort = m_fbPort->value();
+    rc.midi = m_midi->isChecked();
+    rc.midiIn = m_midiIn->currentData().toString();
+    rc.midiOut = m_midiOut->currentData().toString();
+    rc.midiChannel = m_midiChannel->value();
+    AppSettings::setRemoteConfig(rc);
 }

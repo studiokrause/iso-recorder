@@ -22,4 +22,17 @@ void setSplitFolderTemplate(const QString& tmpl);
 // Zmiana nazwy kanalu o domyslnej nazwie po zmianie zrodla: "ask" (pytaj), "always", "never".
 QString renameOnSource();
 void setRenameOnSource(const QString& mode);
+// Zdalne sterowanie (OSC po UDP, MIDI). Domyslnie wylaczone.
+struct RemoteConfig {
+    bool osc = false;
+    int oscPort = 8000;         // port, na ktorym program nasluchuje polecen
+    bool reply = true;          // informacja zwrotna na adres, z ktorego przyszlo polecenie
+    QString fbHost;             // dodatkowo staly cel informacji zwrotnej (puste = brak)
+    int fbPort = 9000;
+    bool midi = false;
+    QString midiIn, midiOut;    // nazwy urzadzen; puste = nie uzywaj
+    int midiChannel = 0;        // 0 = dowolny kanal MIDI; 1-16
+};
+RemoteConfig remoteConfig();
+void setRemoteConfig(const RemoteConfig& c);
 }

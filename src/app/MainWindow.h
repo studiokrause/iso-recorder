@@ -25,8 +25,11 @@ public:
     // Nagrania przerwane awaria (dziennik Recovery): pytanie o naprawe plikow; ask = false naprawia bez pytania.
     void offerRecovery(bool ask = true);
     void setView(int view);                 // 2, 3, 4 = siatka n x n; 0 = lista
+    int view() const { return m_view; }
 
 signals:
+    void viewChanged(int view);
+    void settingsSaved();                   // okno Settings zamkniete przyciskiem OK
     void languageRequested(const QString& code);
 
 protected:
@@ -66,6 +69,7 @@ private:
     ChannelManager* m_mgr;
     ChannelGrid* m_grid;
     ChannelList* m_list = nullptr;
+    int m_view = 4;
     QStackedWidget* m_views = nullptr;
     QButtonGroup* m_viewGroup = nullptr;
     Inspector* m_inspector;

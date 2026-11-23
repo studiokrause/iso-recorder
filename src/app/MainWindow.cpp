@@ -314,6 +314,10 @@ void MainWindow::setView(int view) {
         m_views->setCurrentWidget(m_grid);
     }
     if (QAbstractButton* b = m_viewGroup->button(view)) b->setChecked(true);
+    if (m_view != view) {
+        m_view = view;
+        emit viewChanged(view);
+    }
 }
 
 QWidget* MainWindow::buildControlPanel() {
@@ -615,7 +619,7 @@ void MainWindow::showSettings() {
         const QString path = qApp->property("shotSettings").toString();
         QTimer::singleShot(600, &dlg, [&dlg, path] { dlg.grab().save(path); dlg.reject(); });
     }
-    dlg.exec();
+    if (dlg.exec() == QDialog::Accepted) emit settingsSaved();
 }
 
 void MainWindow::showEventLog() {

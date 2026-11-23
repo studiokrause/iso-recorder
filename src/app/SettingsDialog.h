@@ -4,6 +4,7 @@
 class QCheckBox;
 class QComboBox;
 class QLineEdit;
+class QSpinBox;
 
 // Ustawienia programu: domyslne parametry nagrywania dla nowych kanalow, karta dzwiekowa odsluchu,
 // szablon nazwy folderu dla "Split to new folder".
@@ -29,6 +30,15 @@ private:
     QComboBox* m_monitor;
     QLineEdit* m_folderTemplate;
     QComboBox* m_rename;
+    QCheckBox* m_osc;
+    QSpinBox* m_oscPort;
+    QCheckBox* m_reply;
+    QLineEdit* m_fbHost;
+    QSpinBox* m_fbPort;
+    QCheckBox* m_midi;
+    QComboBox* m_midiIn;
+    QComboBox* m_midiOut;
+    QSpinBox* m_midiChannel;
 };
 
 // Opis zmiennych szablonu nazwy (podpowiedz przy etykietach "Name template").
