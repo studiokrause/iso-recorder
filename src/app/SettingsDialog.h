@@ -1,20 +1,29 @@
 #pragma once
 #include <QDialog>
+#include <QList>
+
+#include "RemoteControl.h"
 
 class QCheckBox;
 class QComboBox;
 class QLineEdit;
 class QSpinBox;
+class QPushButton;
+class QTableWidget;
+class QTimer;
 
 // Ustawienia programu: domyslne parametry nagrywania dla nowych kanalow, karta dzwiekowa odsluchu,
 // szablon nazwy folderu dla "Split to new folder".
 class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit SettingsDialog(QWidget* parent = nullptr);
+    explicit SettingsDialog(QWidget* parent = nullptr, RemoteControl* remote = nullptr);
 
 private:
     void save();
+    void fillMidiTable();
+    void startLearn();
+    void stopLearn();
 
     QLineEdit* m_dir;
     QLineEdit* m_template;
@@ -39,6 +48,11 @@ private:
     QComboBox* m_midiIn;
     QComboBox* m_midiOut;
     QSpinBox* m_midiChannel;
+    RemoteControl* m_remote = nullptr;
+    QList<RemoteControl::MidiBinding> m_bindings;      // edytowana kopia przypisan MIDI
+    QTableWidget* m_midiTable = nullptr;
+    QPushButton* m_learnButton = nullptr;
+    QTimer* m_learnTimer = nullptr;
 };
 
 // Opis zmiennych szablonu nazwy (podpowiedz przy etykietach "Name template").

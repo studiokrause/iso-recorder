@@ -1,5 +1,6 @@
 #pragma once
 #include <QStringList>
+#include <QPointer>
 #include <QWidget>
 
 class ChannelGrid;
@@ -13,6 +14,7 @@ class KeyButton;
 class QLabel;
 class QProgressBar;
 class QPushButton;
+class RemoteControl;
 
 class MainWindow : public QWidget {
     Q_OBJECT
@@ -26,6 +28,7 @@ public:
     void offerRecovery(bool ask = true);
     void setView(int view);                 // 2, 3, 4 = siatka n x n; 0 = lista
     int view() const { return m_view; }
+    void setRemote(RemoteControl* r) { m_remote = r; }      // dla okna Settings (MIDI learn)
 
 signals:
     void viewChanged(int view);
@@ -70,6 +73,7 @@ private:
     ChannelGrid* m_grid;
     ChannelList* m_list = nullptr;
     int m_view = 4;
+    QPointer<RemoteControl> m_remote;
     QStackedWidget* m_views = nullptr;
     QButtonGroup* m_viewGroup = nullptr;
     Inspector* m_inspector;

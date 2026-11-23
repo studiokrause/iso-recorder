@@ -3,6 +3,10 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QTableWidget>
+#include <QTimer>
 #include <QDir>
 #include <QFileDialog>
 #include <QGridLayout>
@@ -92,7 +96,7 @@ QLabel* note(const QString& text) {
 }
 }  // namespace
 
-SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
+SettingsDialog::SettingsDialog(QWidget* parent, RemoteControl* remote) : QDialog(parent), m_remote(remote) {
     setWindowTitle(T("Settings"));
     setWindowFlag(Qt::WindowContextHelpButtonHint, false);
     setMinimumWidth(620);
@@ -319,6 +323,67 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     row(T("MIDI channel"), m_midiChannel);
     v->addLayout(g);
 
+    // ---- MIDI learn: lista polecen z przypisaniem; dwuklik albo "Learn" i nacisniecie przycisku na kontrolerze
+    v->addWidget(note(T("MIDI mapping: select a command, press Learn and then press a button (or turn a knob) on the controller. "
+                        "Notes and controller numbers (CC) both work. By default the commands use notes 0–90.")));
+    m_bindings = RemoteControl::parseBindings(rc.midiMap);
+    m_midiTable = new QTableWidget(RemoteControl::kMidiCommands, 2);
+    m_midiTable->setHorizontalHeaderLabels({T("Command"), T("MIDI message")});
+    m_midiTable->verticalHeader()->setVisible(false);
+    m_midiTable->horizontalHeader()->setStretchLastSection(true);
+    m_midiTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_midiTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_midiTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_midiTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_midiTable->setFixedHeight(230);
+    m_midiTable->setStyleSheet(QStringLiteral("QTableWidget { background:#1a1a1a; border:1px solid #3a3a3a; gridline-color:#2a2a2a; }"
+                                              "QHeaderView::section { background:#262626; color:#9d9d9d; border:0; padding:3px 6px; }"));
+    fillMidiTable();
+    v->addWidget(m_midiTable);
+    auto* learnRow = new QHBoxLayout;
+    m_learnButton = new QPushButton(T("Learn"));
+    auto* clearBtn = new QPushButton(T("Clear"));
+    auto* resetBtn = new QPushButton(T("Reset all to default"));
+    learnRow->addWidget(m_learnButton);
+    learnRow->addWidget(clearBtn);
+    learnRow->addStretch(1);
+    learnRow->addWidget(resetBtn);
+    v->addLayout(learnRow);
+    m_learnTimer = new QTimer(this);
+    m_learnTimer->setSingleShot(true);
+    connect(m_learnTimer, &QTimer::timeout, this, [this] { stopLearn(); });
+    connect(m_learnButton, &QPushButton::clicked, this, [this] { if (m_learnTimer->isActive()) stopLearn(); else startLearn(); });
+    connect(m_midiTable, &QTableWidget::cellDoubleClicked, this, [this] { startLearn(); });
+    connect(clearBtn, &QPushButton::clicked, this, [this] {
+        const int row = m_midiTable->currentRow();
+        if (row < 0) return;
+        m_bindings[row] = {};
+        fillMidiTable();
+        m_midiTable->selectRow(row);
+    });
+    connect(resetBtn, &QPushButton::clicked, this, [this] {
+        m_bindings = RemoteControl::defaultBindings();
+        fillMidiTable();
+    });
+    if (m_remote) {
+        connect(m_remote, &RemoteControl::midiLearned, this, [this](int type, int number, int channel) {
+            const int row = m_midiTable->currentRow();
+            if (row < 0) return;
+            for (RemoteControl::MidiBinding& b : m_bindings)        // ta sama wiadomosc nie moze sterowac dwoma poleceniami
+                if (b.type == type && b.number == number && b.channel == channel) b = {};
+            m_bindings[row] = {type, number, channel};
+            fillMidiTable();
+            m_midiTable->selectRow(row);
+        });
+        connect(m_remote, &RemoteControl::learnEnded, this, [this] {
+            m_learnTimer->stop();
+            m_learnButton->setText(T("Learn"));
+        });
+    } else {
+        m_learnButton->setEnabled(false);
+    }
+
+    connect(this, &QDialog::finished, this, [this] { if (m_remote) m_remote->cancelLearn(); });
     auto* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     box->setContentsMargins(18, 0, 18, 0);
     connect(box, &QDialogButtonBox::accepted, this, [this] { save(); accept(); });
@@ -360,5 +425,34 @@ void SettingsDialog::save() {
     rc.midiIn = m_midiIn->currentData().toString();
     rc.midiOut = m_midiOut->currentData().toString();
     rc.midiChannel = m_midiChannel->value();
+    rc.midiMap = RemoteControl::serializeBindings(m_bindings);
     AppSettings::setRemoteConfig(rc);
+}
+
+void SettingsDialog::fillMidiTable() {
+    for (int i = 0; i < RemoteControl::kMidiCommands; ++i) {
+        m_midiTable->setItem(i, 0, new QTableWidgetItem(RemoteControl::midiCommandName(i)));
+        auto* item = new QTableWidgetItem(RemoteControl::describeBinding(m_bindings.value(i)));
+        if (m_bindings.value(i).type == 0) item->setForeground(QColor(0x77, 0x77, 0x77));
+        m_midiTable->setItem(i, 1, item);
+    }
+}
+
+// Nasluch trwa do pierwszej wiadomosci z wybranego wejscia MIDI, najwyzej 15 s
+void SettingsDialog::startLearn() {
+    if (!m_remote || m_midiTable->currentRow() < 0) return;
+    if (m_midiIn->currentData().toString().isEmpty() && m_remote->config().midiIn.isEmpty()) {
+        m_learnButton->setText(T("Choose the MIDI input first"));
+        QTimer::singleShot(2500, this, [this] { if (!m_learnTimer->isActive()) m_learnButton->setText(T("Learn")); });
+        return;
+    }
+    m_remote->beginLearn(m_midiIn->currentData().toString());
+    m_learnButton->setText(T("Press a button on the controller… (click to cancel)"));
+    m_learnTimer->start(15000);
+}
+
+void SettingsDialog::stopLearn() {
+    if (m_remote) m_remote->cancelLearn();
+    m_learnTimer->stop();
+    m_learnButton->setText(T("Learn"));
 }

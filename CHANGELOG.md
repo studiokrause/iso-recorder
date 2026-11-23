@@ -14,7 +14,10 @@ Numeracja: 0.1, 0.2, … (plan wersji: `instrukcja_koncowa.md`, rozdz. 6).
     utrzymuje go `/isorec/status`), opcjonalnie także na stały adres.
   - **MIDI** (winmm): mapa nut 0–90 (REC, STOP, PAUSE, SPLIT, SELECT kanałów, polecenia zaznaczonych, zaznaczanie, widok),
     wejście i wyjście MIDI — przyciski kontrolera świecą zgodnie ze stanem. Tylko Note On; kontrolery CC (suwaki, gałki)
-    są świadomie pomijane.
+    są pomijane, dopóki ich nie przypiszesz.
+  - **MIDI learn**: Settings → Remote control → lista 91 poleceń z przypisaną wiadomością; zaznacz polecenie, kliknij Learn (albo dwuklik)
+    i naciśnij przycisk na kontrolerze — przypisanie może być nutą albo CC, z kanałem MIDI albo bez. Clear i Reset all to default.
+    Światła na wyjściu MIDI używają tego samego przypisania (nuta albo CC).
   - **Moduł Bitfocus Companion** (`companion\isorecorder`, paczka `isorecorder-3.5.0.tgz`, API modułów 2.x, `@companion-module/base ~2.1.3`):
     akcje, feedbacki, zmienne (`chN_name`, `chN_state`, `chN_time`, …) i gotowe presety przycisków dla Stream Decka.
   - Dokumentacja: `docs\Remote-Control.md` (w paczce i w Release).

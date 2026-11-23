@@ -26,6 +26,8 @@
 #include <QStandardPaths>
 #include <QStorageInfo>
 #include <QTimer>
+#include <QScrollBar>
+#include <QScrollArea>
 #include <QVBoxLayout>
 
 #include <windows.h>
@@ -614,10 +616,14 @@ void MainWindow::offerRecovery(bool ask) {
 }
 
 void MainWindow::showSettings() {
-    SettingsDialog dlg(this);
+    SettingsDialog dlg(this, m_remote);
     if (qApp->property("shotSettings").isValid()) {      // zrzut okna do dokumentacji / testu
         const QString path = qApp->property("shotSettings").toString();
-        QTimer::singleShot(600, &dlg, [&dlg, path] { dlg.grab().save(path); dlg.reject(); });
+        QTimer::singleShot(600, &dlg, [&dlg, path] {
+            if (auto* sa = dlg.findChild<QScrollArea*>(); sa && QApplication::arguments().contains(QStringLiteral("--tab-end")))
+                sa->verticalScrollBar()->setValue(sa->verticalScrollBar()->maximum());       // zrzut dolnej czesci okna
+            QTimer::singleShot(150, &dlg, [&dlg, path] { dlg.grab().save(path); dlg.reject(); });
+        });
     }
     if (dlg.exec() == QDialog::Accepted) emit settingsSaved();
 }

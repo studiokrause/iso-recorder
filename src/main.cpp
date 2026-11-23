@@ -217,6 +217,7 @@ int main(int argc, char* argv[]) {
             MainWindow* old = w.release();
             w = std::make_unique<MainWindow>(&manager);
             remote.setWindow(w.get());
+            w->setRemote(&remote);
             QObject::connect(w.get(), &MainWindow::settingsSaved, &remote, [&remote] { remote.apply(AppSettings::remoteConfig()); });
             QObject::connect(w.get(), &MainWindow::languageRequested, &manager, [&](const QString& code) {
                 Lang::set(code);

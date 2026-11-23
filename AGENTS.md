@@ -33,7 +33,8 @@ z tłumaczeniami PL, DE, ES, IT, FR.
 - **Grupa kanałów**: wspólna chwila startu, pauzy i stopu (dokładność do jednej klatki).
 - **Zdalne sterowanie (3.5)**: `src/app/RemoteControl.*` (OSC UDP przez QUdpSocket, MIDI przez winmm, jeden wykonawca poleceń
   `runCommand`), kodek `src/core/Osc.*`, ustawienia `AppSettings::RemoteConfig`, widok `MainWindow::view()/viewChanged`.
-  Klienci OSC dostają stan na adres nadawcy (wygasają po 20 s). MIDI tylko Note On (CC pomijane celowo — suwaki).
+  Klienci OSC dostają stan na adres nadawcy (wygasają po 20 s). MIDI: przypisania (nuta/CC + kanał) per polecenie, domyślnie nuty 0–90; MIDI learn w Settings (`RemoteControl::beginLearn`,
+  `MidiBinding`, zapis `remote/midiMap` tylko różnic od domyślnych); CC działa tylko po przypisaniu (suwaki).
   Moduł Companion w `companion/isorecorder` (Node, API 2.x, `~2.1.3`), dokumentacja `docs/Remote-Control.md`.
   Testy: `--remote-selftest`, `tests\osc_test.ps1`, `npm test` i `node test/e2e.mjs` w module. Niesprawdzone: prawdziwy Companion,
   Stream Deck, fizyczny kontroler MIDI. Port OSC bez hasła — dokumentacja ostrzega.

@@ -42,6 +42,19 @@ public:
     const AppSettings::RemoteConfig& config() const { return m_cfg; }
     QString statusText() const;                 // "OSC :8000, MIDI in/out" itp. - do logu
 
+    // --- MIDI learn: kazde z 91 polecen ma przypisanie (nuta albo CC, kanal MIDI); domyslnie nuta o numerze polecenia
+    struct MidiBinding { int type = 0; int number = 0; int channel = 0; };      // type: 0 brak, 1 nuta, 2 CC; channel 0 = dowolny
+    static constexpr int kMidiCommands = 91;
+    static QString midiCommandName(int index);                                  // nazwa dla czlowieka (tlumaczona)
+    static QList<MidiBinding> defaultBindings();
+    static QList<MidiBinding> parseBindings(const QString& text);               // puste / uszkodzone = domyslne
+    static QString serializeBindings(const QList<MidiBinding>& list);           // pusty tekst, gdy wszystko domyslne
+    static QString describeBinding(const MidiBinding& b);
+    // Nasluch nastepnej wiadomosci z wejscia o podanej nazwie; wynik w sygnale midiLearned (nic nie wykonuje).
+    void beginLearn(const QString& inputName);
+    void cancelLearn();
+    bool learning() const { return m_learning; }
+
     static QStringList midiInputs();
     static QStringList midiOutputs();
 
@@ -56,6 +69,8 @@ public:
 
 signals:
     void notice(const QString& text);
+    void midiLearned(int type, int number, int channel);       // type 1 = nuta, 2 = CC; channel 1-16
+    void learnEnded();
 
 private:
     void openOsc();
@@ -67,7 +82,7 @@ private:
     void sendTo(const QHostAddress& host, quint16 port, const QString& path, const QVariantList& args);
     void sendAll(const QMap<QString, QVariant>& values);
     void sendMidiFeedback(const QMap<QString, QVariant>& values, bool all);
-    void sendNote(int note, bool on);
+    void sendBinding(int index, bool on);
     static QString midiCommand(int note);
     int viewNow() const;
     static QString viewName(int view);
@@ -86,5 +101,8 @@ private:
     quintptr m_midiIn = 0, m_midiOut = 0;
     QMap<int, int> m_midiLast;                      // nuta -> ostatnia wyslana wartosc
     bool m_forceMidi = true;
+    QList<MidiBinding> m_bind;
+    bool m_learning = false;
+    quintptr m_learnIn = 0;                         // wejscie otwarte tylko na czas nasluchu (gdy inne niz robocze)
     bool m_cleanup = false;
 };

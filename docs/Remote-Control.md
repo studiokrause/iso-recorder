@@ -103,12 +103,27 @@ The repository contains a complete automatic test (`tests\osc_test.ps1`) that se
 Windows MIDI (winmm). Choose the **MIDI input** (commands) and, optionally, the **MIDI output** (lights of the buttons) in Settings.
 **MIDI channel**: *Any* accepts every channel (and the lights use channel 1); 1–16 uses only that channel.
 
-Only **Note On** messages are used (a note with velocity 0 and Note Off are ignored — they are the release of a button).
-Control changes (faders, knobs) are **ignored on purpose**, so that moving a fader cannot start a recording.
-If your controller sends control changes from its buttons (Korg nanoKONTROL2 does in its default mode), set its buttons to
-*Note* in the controller's editor, or translate them with a MIDI mapper.
+A press is a **Note On** (velocity above 0) or a **Control Change** (value above 0); the release (velocity / value 0) and Note Off are ignored.
+Control changes are used **only when you assign them** (see MIDI learn below), so moving a fader of a controller whose buttons you did not map
+cannot start a recording.
 
-### Note map (input and button lights)
+### MIDI learn
+
+**Settings → Remote control → MIDI mapping** lists all 91 commands with the message assigned to each one.
+
+1. Select a command in the list (or double-click it).
+2. Press **Learn** and press a button (or turn a knob) on the controller. The list shows the message that was received, for example
+   `Note 36 · channel 2` or `CC 41`. The program listens to the **MIDI input** chosen above, even before you press OK.
+   Learning ends with the first message, after 15 seconds, or when you click the button again.
+3. **Clear** removes the assignment of the selected command; **Reset all to default** restores the note map below.
+4. Press **OK** to apply and save.
+
+Rules: a message controls one command only (assigning it to a second command takes it away from the first); an assignment that stores a MIDI
+channel works only on that channel, and wins over an assignment of the same number without a channel; the other assignments use the **MIDI channel**
+setting (*Any* or 1–16). The lights (MIDI output) use the assigned message too: Note On for a note, Control Change for a CC, velocity / value 127 and 0.
+That makes a controller that sends control changes from its buttons (Korg nanoKONTROL2 in its default mode) work without editing the controller.
+
+### Default note map (before you learn anything)
 
 | Notes | Command | Light (MIDI output) |
 | --- | --- | --- |
@@ -127,7 +142,7 @@ If your controller sends control changes from its buttons (Korg nanoKONTROL2 doe
 | 87 / 88 / 89 / 90 | View 2×2 / 3×3 / 4×4 / list | on for the current view |
 
 The lights are sent as Note On, velocity 127 (on) or 0 (off), only when they change, and all of them once after the settings are applied.
-Pad controllers (Akai APC/MPK, Novation Launchpad, Behringer X-Touch in note mode, …) fit this map as it is.
+Pad controllers (Akai APC/MPK, Novation Launchpad, Behringer X-Touch in note mode, …) fit this map as it is; with other controllers use MIDI learn.
 
 ## Stream Deck and Bitfocus Companion
 

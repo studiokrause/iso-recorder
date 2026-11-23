@@ -82,6 +82,7 @@ AppSettings::RemoteConfig AppSettings::remoteConfig() {
     c.midiIn = s.value(QStringLiteral("remote/midiIn")).toString();
     c.midiOut = s.value(QStringLiteral("remote/midiOut")).toString();
     c.midiChannel = qBound(0, s.value(QStringLiteral("remote/midiChannel"), c.midiChannel).toInt(), 16);
+    c.midiMap = s.value(QStringLiteral("remote/midiMap")).toString();
     return c;
 }
 
@@ -96,6 +97,7 @@ void AppSettings::setRemoteConfig(const RemoteConfig& c) {
     s.setValue(QStringLiteral("remote/midiIn"), c.midiIn);
     s.setValue(QStringLiteral("remote/midiOut"), c.midiOut);
     s.setValue(QStringLiteral("remote/midiChannel"), c.midiChannel);
+    s.setValue(QStringLiteral("remote/midiMap"), c.midiMap);
 }
 
 void AppSettings::setSplitFolderTemplate(const QString& tmpl) { store().setValue(QStringLiteral("splitFolderTemplate"), tmpl.trimmed()); }

@@ -136,7 +136,7 @@ using a dedicated gateway.
 
 - **OSC** over UDP (default port 8000): REC / STOP / PAUSE / SPLIT / SELECT of every channel, the same for the selected channels,
   select all / none / invert, and the view (2×2, 3×3, 4×4, list). Status comes back as standard `/isorec/...` paths.
-- **MIDI**: a note map for the same commands, with button lights sent back to the controller.
+- **MIDI** with **MIDI learn**: a list of all commands in Settings, assign any note or controller to each; button lights are sent back to the controller.
 - **Stream Deck** through a **Bitfocus Companion** module (included): actions, feedbacks, variables and ready-made button presets.
 - Full reference: [docs/Remote-Control.md](docs/Remote-Control.md).
 

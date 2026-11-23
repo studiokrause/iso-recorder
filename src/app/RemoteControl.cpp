@@ -74,6 +74,7 @@ RemoteControl::RemoteControl(ChannelManager* mgr, QObject* parent) : QObject(par
 
 RemoteControl::~RemoteControl() {
     m_cleanup = true;
+    cancelLearn();
     closeOsc();
     closeMidi();
 }
@@ -113,6 +114,7 @@ void RemoteControl::apply(const AppSettings::RemoteConfig& c) {
     closeOsc();
     closeMidi();
     m_cfg = c;
+    m_bind = parseBindings(c.midiMap);
     m_last.clear();
     m_forceMidi = true;
     m_clients.clear();
@@ -258,12 +260,99 @@ bool RemoteControl::runCommand(const QString& path, const QVariantList& args) {
 
 void RemoteControl::handleMidi(int status, int d1, int d2) {
     const int type = status & 0xF0;
-    // Tylko nuty (Note On): kontrolery CC to zwykle suwaki i galki, ktore przy ruchu wysylalyby setki "polecen".
-    // Zwolnienie nuty (velocity 0) i Note Off sa pomijane.
-    if (type != 0x90 || d2 == 0) return;
-    if (m_cfg.midiChannel > 0 && (status & 0x0F) + 1 != m_cfg.midiChannel) return;
-    const QString cmd = midiCommand(d1);
-    if (!cmd.isEmpty()) runCommand(cmd, {});
+    // Nuta (Note On) albo kontroler (CC) z wartoscia > 0 to nacisk; zwolnienie (0) i Note Off sa pomijane.
+    if ((type != 0x90 && type != 0xB0) || d2 == 0) return;
+    const int kind = type == 0x90 ? 1 : 2, channel = (status & 0x0F) + 1;
+    if (m_learning) {                                   // MIDI learn: wiadomosc nie wykonuje polecenia
+        emit midiLearned(kind, d1, channel);
+        cancelLearn();
+        return;
+    }
+    // Przypisanie z kanalem MIDI ma pierwszenstwo przed przypisaniem "dowolny kanal" o tym samym numerze.
+    for (int pass = 0; pass < 2; ++pass)
+        for (int i = 0; i < m_bind.size(); ++i) {
+            const MidiBinding& b = m_bind.at(i);
+            if (b.type != kind || b.number != d1) continue;
+            if (pass == 0 ? b.channel != channel : (b.channel != 0 || (m_cfg.midiChannel > 0 && m_cfg.midiChannel != channel))) continue;
+            runCommand(midiCommand(i), {});
+            return;
+        }
+}
+
+QList<RemoteControl::MidiBinding> RemoteControl::defaultBindings() {
+    QList<MidiBinding> list;
+    for (int i = 0; i < kMidiCommands; ++i) list.append({1, i, 0});
+    return list;
+}
+
+// Zapis: "indeks:typ:numer:kanal" rozdzielone przecinkami, tylko pozycje rozne od domyslnych
+QList<RemoteControl::MidiBinding> RemoteControl::parseBindings(const QString& text) {
+    QList<MidiBinding> list = defaultBindings();
+    for (const QString& part : text.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        const QStringList f = part.split(QLatin1Char(':'));
+        if (f.size() != 4) continue;
+        bool ok[4];
+        const int i = f[0].toInt(&ok[0]), t = f[1].toInt(&ok[1]), n = f[2].toInt(&ok[2]), c = f[3].toInt(&ok[3]);
+        if (!ok[0] || !ok[1] || !ok[2] || !ok[3] || i < 0 || i >= kMidiCommands || t < 0 || t > 2 || n < 0 || n > 127 || c < 0 || c > 16) continue;
+        list[i] = {t, t ? n : 0, t ? c : 0};
+    }
+    return list;
+}
+
+QString RemoteControl::serializeBindings(const QList<MidiBinding>& list) {
+    const QList<MidiBinding> def = defaultBindings();
+    QStringList parts;
+    for (int i = 0; i < list.size() && i < kMidiCommands; ++i) {
+        const MidiBinding& b = list.at(i);
+        if (b.type != def[i].type || b.number != def[i].number || b.channel != def[i].channel)
+            parts << QStringLiteral("%1:%2:%3:%4").arg(i).arg(b.type).arg(b.number).arg(b.channel);
+    }
+    return parts.join(QLatin1Char(','));
+}
+
+QString RemoteControl::describeBinding(const MidiBinding& b) {
+    if (b.type == 0) return T("not assigned");
+    const QString what = (b.type == 1 ? T("Note %1") : T("CC %1")).arg(b.number);
+    return b.channel > 0 ? what + QStringLiteral(" · ") + T("channel %1").arg(b.channel) : what;
+}
+
+QString RemoteControl::midiCommandName(int n) {
+    static const char* const act[] = {"REC", "STOP", "PAUSE", "SPLIT", "SELECT"};
+    if (n >= 0 && n < 80) return T("Channel %1").arg(n % 16 + 1) + QStringLiteral(" — ") + QLatin1String(act[n / 16]);
+    if (n >= 80 && n < 84) return T("Selected channels") + QStringLiteral(" — ") + QLatin1String(act[n - 80]);
+    if (n == 84) return T("Select all");
+    if (n == 85) return T("Invert selection");
+    if (n == 86) return T("Select none");
+    static const char* const views[] = {"2x2", "3x3", "4x4"};
+    if (n >= 87 && n < 90) return T("View") + QStringLiteral(" ") + QLatin1String(views[n - 87]);
+    if (n == 90) return T("View") + QStringLiteral(" ") + T("List");
+    return {};
+}
+
+void RemoteControl::beginLearn(const QString& inputName) {
+    cancelLearn();
+    m_learning = true;
+    if (!inputName.isEmpty() && inputName != m_cfg.midiIn) {        // wejscie inne niz robocze: otwieramy je na czas nasluchu
+        const int idx = int(midiInputs().indexOf(inputName));
+        HMIDIIN h = nullptr;
+        if (idx >= 0 && midiInOpen(&h, UINT(idx), DWORD_PTR(&midiInProc), DWORD_PTR(this), CALLBACK_FUNCTION) == MMSYSERR_NOERROR) {
+            midiInStart(h);
+            m_learnIn = quintptr(h);
+        }
+    }
+}
+
+void RemoteControl::cancelLearn() {
+    const bool was = m_learning;
+    m_learning = false;
+    if (m_learnIn) {
+        const HMIDIIN h = HMIDIIN(m_learnIn);
+        midiInStop(h);
+        midiInReset(h);
+        midiInClose(h);
+        m_learnIn = 0;
+    }
+    if (was) emit learnEnded();
 }
 
 // ---------------------------------------------------------------- stan i informacja zwrotna
@@ -308,10 +397,12 @@ void RemoteControl::sendAll(const QMap<QString, QVariant>& values) {
     }
 }
 
-void RemoteControl::sendNote(int note, bool on) {
-    if (!m_midiOut) return;
-    const int ch = std::max(0, m_cfg.midiChannel - 1);
-    midiOutShortMsg(HMIDIOUT(m_midiOut), DWORD(0x90 | ch) | (DWORD(note) << 8) | (DWORD(on ? 127 : 0) << 16));
+void RemoteControl::sendBinding(int index, bool on) {
+    if (!m_midiOut || index < 0 || index >= m_bind.size()) return;
+    const MidiBinding& b = m_bind.at(index);
+    if (b.type == 0) return;
+    const int ch = b.channel > 0 ? b.channel - 1 : std::max(0, m_cfg.midiChannel - 1);
+    midiOutShortMsg(HMIDIOUT(m_midiOut), DWORD((b.type == 1 ? 0x90 : 0xB0) | ch) | (DWORD(b.number) << 8) | (DWORD(on ? 127 : 0) << 16));
 }
 
 void RemoteControl::sendMidiFeedback(const QMap<QString, QVariant>& v, bool all) {
@@ -350,7 +441,7 @@ void RemoteControl::sendMidiFeedback(const QMap<QString, QVariant>& v, bool all)
     want[90] = view == QLatin1String("list");
     for (auto it = want.cbegin(); it != want.cend(); ++it)
         if (all || m_midiLast.value(it.key(), -1) != it.value()) {
-            sendNote(it.key(), it.value() != 0);
+            sendBinding(it.key(), it.value() != 0);
             m_midiLast[it.key()] = it.value();
         }
 }
@@ -460,6 +551,53 @@ int RemoteControl::selfTest(QString* report) {
         check(QStringLiteral("MIDI: nuta 85 odwraca zaznaczenie"), m_mgr->selectedCount() == n - 2);
         check(QStringLiteral("polecenie: nieznana sciezka i kanal poza zakresem sa odrzucane"),
               !runCommand(QStringLiteral("/isorec/ch/99/rec"), {}) && !runCommand(QStringLiteral("/isorec/foo"), {}) && !runCommand(QStringLiteral("/other/ch/1/rec"), {}));
+    }
+    // MIDI learn: przypisania, zapis, nasluch
+    {
+        QList<MidiBinding> b = defaultBindings();
+        check(QStringLiteral("MIDI learn: domyslne przypisania daja pusty zapis"), serializeBindings(b).isEmpty() && b.size() == kMidiCommands);
+        b[84] = {2, 50, 0};         // CC 50 = zaznacz wszystkie (dowolny kanal MIDI)
+        b[85] = {1, 10, 3};         // nuta 10 na kanale MIDI 3 = odwroc zaznaczenie
+        b[86] = {0, 0, 0};          // zaznacz zadne: bez przypisania
+        const QString text = serializeBindings(b);
+        const QList<MidiBinding> back = parseBindings(text);
+        bool same = back.size() == b.size();
+        for (int i = 0; same && i < b.size(); ++i) same = back[i].type == b[i].type && back[i].number == b[i].number && back[i].channel == b[i].channel;
+        check(QStringLiteral("MIDI learn: zapis i odczyt przypisan"), same && parseBindings(QStringLiteral("zly:zapis,99:1:1:1")).size() == kMidiCommands, text);
+        check(QStringLiteral("MIDI learn: opis przypisania"), !describeBinding(b[84]).isEmpty() && describeBinding(b[85]).contains(QLatin1Char('3')));
+        const QList<MidiBinding> keep = m_bind;
+        m_bind = b;
+        if (n >= 2) {
+            runCommand(QStringLiteral("/isorec/select/none"), {});
+            handleMidi(0xB0, 50, 100);
+            check(QStringLiteral("MIDI learn: CC 50 zaznacza wszystkie"), m_mgr->selectedCount() == n);
+            handleMidi(0xB0, 50, 0);
+            handleMidi(0x90, 84, 100);          // stara nuta 84 nie dziala, bo polecenie dostalo nowe przypisanie
+            check(QStringLiteral("MIDI learn: zwolnienie CC i stara nuta sa ignorowane"), m_mgr->selectedCount() == n);
+            handleMidi(0x90, 10, 100);          // kanal MIDI 1: przypisanie wymaga kanalu 3
+            check(QStringLiteral("MIDI learn: przypisanie z kanalem MIDI nie dziala na innym kanale"), m_mgr->selectedCount() == n);
+            handleMidi(0x92, 10, 100);
+            check(QStringLiteral("MIDI learn: nuta 10 na kanale MIDI 3 odwraca zaznaczenie"), m_mgr->selectedCount() == 0);
+            runCommand(QStringLiteral("/isorec/select/all"), {});
+            handleMidi(0x90, 86, 100);          // polecenie bez przypisania (i nuta 86 nie jest juz niczyja)
+            check(QStringLiteral("MIDI learn: polecenie bez przypisania nic nie robi"), m_mgr->selectedCount() == n);
+            runCommand(QStringLiteral("/isorec/select/none"), {});
+        }
+        int gotType = 0, gotNumber = -1, gotChannel = 0, ended = 0;
+        const QMetaObject::Connection c1 = connect(this, &RemoteControl::midiLearned, this, [&](int t, int num, int ch) { gotType = t; gotNumber = num; gotChannel = ch; });
+        const QMetaObject::Connection c2 = connect(this, &RemoteControl::learnEnded, this, [&] { ++ended; });
+        beginLearn(QString());
+        handleMidi(0x90, 0, 0);                 // zwolnienie nie jest przechwytywane
+        check(QStringLiteral("MIDI learn: zwolnienie nie konczy nasluchu"), learning() && gotNumber < 0);
+        handleMidi(0xB1, 74, 90);
+        check(QStringLiteral("MIDI learn: przechwycenie CC 74 na kanale 2, nasluch konczy sie"), !learning() && gotType == 2 && gotNumber == 74 && gotChannel == 2 && ended == 1);
+        check(QStringLiteral("MIDI learn: przechwycona wiadomosc nie wykonala polecenia"), m_mgr->selectedCount() == 0);
+        beginLearn(QString());
+        cancelLearn();
+        check(QStringLiteral("MIDI learn: anulowanie"), !learning() && ended == 2);
+        disconnect(c1);
+        disconnect(c2);
+        m_bind = keep;
     }
     const QMap<QString, QVariant> s = snapshot();
     check(QStringLiteral("stan: wersja, liczba kanalow i zaznaczonych"), s.value(kRoot + QStringLiteral("/version")).toString() == QLatin1String(APP_VERSION) &&

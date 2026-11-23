@@ -32,6 +32,7 @@ struct RemoteConfig {
     bool midi = false;
     QString midiIn, midiOut;    // nazwy urzadzen; puste = nie uzywaj
     int midiChannel = 0;        // 0 = dowolny kanal MIDI; 1-16
+    QString midiMap;            // przypisania MIDI learn (puste = domyslna mapa nut)
 };
 RemoteConfig remoteConfig();
 void setRemoteConfig(const RemoteConfig& c);
