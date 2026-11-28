@@ -10,6 +10,8 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QKeySequenceEdit>
+#include <QTableWidget>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QHBoxLayout>
@@ -138,6 +140,7 @@ MainWindow::MainWindow(ChannelManager* mgr, QWidget* parent) : QWidget(parent), 
     frame->start(40);
 
     setView(QSettings(ChannelManager::settingsOrg(), QStringLiteral("IsoRecorder")).value(QStringLiteral("view"), 4).toInt());
+    loadShortcuts();
     refreshCounts();
     refreshActive();
     refreshSession();
@@ -622,10 +625,16 @@ void MainWindow::showSettings() {
         QTimer::singleShot(600, &dlg, [&dlg, path] {
             if (auto* sa = dlg.findChild<QScrollArea*>(); sa && QApplication::arguments().contains(QStringLiteral("--tab-end")))
                 sa->verticalScrollBar()->setValue(sa->verticalScrollBar()->maximum());       // zrzut dolnej czesci okna
+            if (auto* sa = dlg.findChild<QScrollArea*>(); sa && QApplication::arguments().contains(QStringLiteral("--tab-keys")))
+                if (auto* editor = dlg.findChild<ShortcutEditor*>())      // zrzut sekcji skrotow klawiszowych
+                    sa->verticalScrollBar()->setValue(editor->mapTo(sa->widget(), QPoint(0, 0)).y() - 70);
             QTimer::singleShot(150, &dlg, [&dlg, path] { dlg.grab().save(path); dlg.reject(); });
         });
     }
-    if (dlg.exec() == QDialog::Accepted) emit settingsSaved();
+    if (dlg.exec() == QDialog::Accepted) {
+        loadShortcuts();
+        emit settingsSaved();
+    }
 }
 
 void MainWindow::showEventLog() {
@@ -718,33 +727,179 @@ void MainWindow::resizeEvent(QResizeEvent* e) {
     m_right->setFixedWidth(qBound(RightMin, width() - ChannelGrid::widthForHeight(gridH, 4), RightMax));
 }
 
-void MainWindow::keyPressEvent(QKeyEvent* e) {
-    const bool ctrl = e->modifiers() & Qt::ControlModifier;
-    const bool shift = e->modifiers() & Qt::ShiftModifier;
+// Dzialania, ktorym mozna przypisac skrot (Settings → Keyboard shortcuts). Domyslne klawisze jak od wersji 1.x.
+QList<ShortcutMap::Action> MainWindow::shortcutActions() {
+    QList<ShortcutMap::Action> list;
+    auto add = [&list](const char* id, const QString& name, const QList<QKeySequence>& keys = {}) {
+        list.append({QLatin1String(id), name, keys});
+    };
+    auto key = [](const char* text) { return QList<QKeySequence>{QKeySequence::fromString(QLatin1String(text), QKeySequence::PortableText)}; };
+    const QString active = T("Active channel") + QStringLiteral(" — ");
+    const QString selected = T("Selected channels") + QStringLiteral(" — ");
+    add("rec", active + QStringLiteral("REC"), key("R"));
+    add("pause", active + QStringLiteral("PAUSE"), key("P"));
+    add("stop", active + QStringLiteral("STOP"), key("S"));
+    add("split", active + QStringLiteral("SPLIT"), key("X"));
+    add("toggleSelect", active + T("select / deselect"), key("Space"));
+    add("monitor", active + T("listen"));
+    add("remove", T("Remove the active channel"), key("Del"));
+    add("prev", T("Previous channel"), key("Left"));
+    add("next", T("Next channel"), key("Right"));
+    add("selectedRec", selected + QStringLiteral("REC"));
+    add("selectedPause", selected + QStringLiteral("PAUSE"));
+    add("selectedStop", selected + QStringLiteral("STOP"));
+    add("selectedSplit", selected + QStringLiteral("SPLIT"));
+    add("selectedSplitFolder", T("Split to new folder"));
+    add("duplicate", selected + T("duplicate"), key("Ctrl+D"));
+    add("removeSelected", selected + T("remove"), key("Shift+Del"));
+    add("selectAll", T("Select all"), key("Ctrl+A"));
+    add("selectNone", T("Select none"), key("Ctrl+Shift+A"));
+    add("invert", T("Invert selection"), key("Ctrl+I"));
+    add("addSource", T("Add source"));
+    add("newList", T("New list"), key("Ctrl+N"));
+    add("loadList", T("Load list…"), key("Ctrl+O"));
+    add("saveList", T("Save list"), key("Ctrl+S"));
+    add("saveAs", T("Save as…"), key("Ctrl+Shift+S"));
+    for (int n : {2, 3, 4}) list.append({QStringLiteral("view%1").arg(n), T("View") + QStringLiteral(" %1×%1").arg(n), {}});
+    add("viewList", T("View") + QStringLiteral(" ") + T("List"));
+    add("recordings", T("Open the recordings folder"));
+    add("disks", T("Disks…"));
+    add("settings", T("Settings…"));
+    add("eventLog", T("Event log…"));
+    return list;
+}
+
+void MainWindow::loadShortcuts() {
+    m_keys = ShortcutMap(shortcutActions());
+    QSettings s(ChannelManager::settingsOrg(), QStringLiteral("IsoRecorder"));
+    m_keys.load(s);
+}
+
+bool MainWindow::runShortcut(const QString& id) {
     Channel* ch = m_mgr->active();
     const int i = m_mgr->indexOf(ch), n = m_mgr->count();
-    switch (e->key()) {
-    case Qt::Key_A: if (ctrl && shift) m_mgr->selectNone(); else if (ctrl) m_mgr->selectAll(); break;
-    case Qt::Key_I: if (ctrl) m_mgr->invertSelection(); break;
-    case Qt::Key_Delete:
-        if (shift) removeSelected();
-        else if (ch && ChannelTile::confirmRemove(this, {ch})) m_mgr->removeChannel(ch);
-        break;
-    case Qt::Key_D: if (ctrl) m_mgr->duplicateChannels(m_mgr->selected()); break;
-    case Qt::Key_R: if (ch && !ctrl) m_mgr->transport(ch, Transport::Rec); break;
-    case Qt::Key_P: if (ch && !ctrl) m_mgr->transport(ch, Transport::Pause); break;
-    case Qt::Key_S:
-        if (ctrl) saveList(shift);
-        else if (ch) m_mgr->transport(ch, Transport::Stop);
-        break;
-    case Qt::Key_O: if (ctrl) loadList(); break;
-    case Qt::Key_N: if (ctrl) newList(); break;
-    case Qt::Key_X: if (ch && !ctrl) m_mgr->transport(ch, Transport::Split); break;
-    case Qt::Key_Left: if (i > 0) m_mgr->setActive(m_mgr->channels().at(i - 1)); break;
-    case Qt::Key_Right: if (i >= 0 && i < n - 1) m_mgr->setActive(m_mgr->channels().at(i + 1)); break;
-    case Qt::Key_Space: if (ch) ch->setSelected(!ch->isSelected()); break;
-    default: QWidget::keyPressEvent(e);
+    auto view = [this](int v) {
+        setView(v);
+        if (m_mgr->persistence()) QSettings(ChannelManager::settingsOrg(), QStringLiteral("IsoRecorder")).setValue(QStringLiteral("view"), v);
+    };
+    if (id == QLatin1String("rec")) { if (ch) m_mgr->transport(ch, Transport::Rec); }
+    else if (id == QLatin1String("pause")) { if (ch) m_mgr->transport(ch, Transport::Pause); }
+    else if (id == QLatin1String("stop")) { if (ch) m_mgr->transport(ch, Transport::Stop); }
+    else if (id == QLatin1String("split")) { if (ch) m_mgr->transport(ch, Transport::Split); }
+    else if (id == QLatin1String("toggleSelect")) { if (ch) ch->setSelected(!ch->isSelected()); }
+    else if (id == QLatin1String("monitor")) { if (ch) m_mgr->setMonitored(ch); }
+    else if (id == QLatin1String("remove")) { if (ch && ChannelTile::confirmRemove(this, {ch})) m_mgr->removeChannel(ch); }
+    else if (id == QLatin1String("prev")) { if (i > 0) m_mgr->setActive(m_mgr->channels().at(i - 1)); }
+    else if (id == QLatin1String("next")) { if (i >= 0 && i < n - 1) m_mgr->setActive(m_mgr->channels().at(i + 1)); }
+    else if (id == QLatin1String("selectedRec")) transportSelected(Transport::Rec);
+    else if (id == QLatin1String("selectedPause")) transportSelected(Transport::Pause);
+    else if (id == QLatin1String("selectedStop")) transportSelected(Transport::Stop);
+    else if (id == QLatin1String("selectedSplit")) transportSelected(Transport::Split);
+    else if (id == QLatin1String("selectedSplitFolder")) m_mgr->splitToNewFolder(m_mgr->selected());
+    else if (id == QLatin1String("duplicate")) m_mgr->duplicateChannels(m_mgr->selected());
+    else if (id == QLatin1String("removeSelected")) removeSelected();
+    else if (id == QLatin1String("selectAll")) m_mgr->selectAll();
+    else if (id == QLatin1String("selectNone")) m_mgr->selectNone();
+    else if (id == QLatin1String("invert")) m_mgr->invertSelection();
+    else if (id == QLatin1String("addSource")) m_mgr->addChannel();
+    else if (id == QLatin1String("newList")) newList();
+    else if (id == QLatin1String("loadList")) loadList();
+    else if (id == QLatin1String("saveList")) saveList(false);
+    else if (id == QLatin1String("saveAs")) saveList(true);
+    else if (id == QLatin1String("view2")) view(2);
+    else if (id == QLatin1String("view3")) view(3);
+    else if (id == QLatin1String("view4")) view(4);
+    else if (id == QLatin1String("viewList")) view(0);
+    else if (id == QLatin1String("recordings")) showRecordings(this);
+    else if (id == QLatin1String("disks")) showDisks();
+    else if (id == QLatin1String("settings")) showSettings();
+    else if (id == QLatin1String("eventLog")) showEventLog();
+    else return false;
+    return true;
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* e) {
+    const QString id = m_keys.match(e);
+    if (id.isEmpty() || !runShortcut(id)) QWidget::keyPressEvent(e);
+}
+
+// Samokontrola skrotow (--keys-selftest, tylko w osobnym profilu): prawdziwe zdarzenia klawiatury na oknie.
+int MainWindow::keysSelfTest(QString* report) {
+    int bad = 0;
+    QString out;
+    auto check = [&](const QString& what, bool ok) {
+        out += QStringLiteral("%1  %2\n").arg(ok ? QStringLiteral("ok  ") : QStringLiteral("BLAD"), what);
+        if (!ok) ++bad;
+    };
+    auto press = [this](const char* text) {
+        const QKeyCombination k = QKeySequence::fromString(QLatin1String(text), QKeySequence::PortableText)[0];
+        QKeyEvent ev(QEvent::KeyPress, k.key(), k.keyboardModifiers());
+        QApplication::sendEvent(this, &ev);
+    };
+    const int n = m_mgr->count();
+    check(QStringLiteral("co najmniej 3 kanaly testowe"), n >= 3);
+    if (n < 3) { if (report) *report = out; return bad; }
+    m_keys = ShortcutMap(shortcutActions());
+    QStringList ids;
+    bool unique = true;
+    for (const ShortcutMap::Action& a : m_keys.actions()) {
+        unique = unique && !ids.contains(a.id) && !a.name.isEmpty();
+        ids << a.id;
     }
+    check(QStringLiteral("lista dzialan: unikalne identyfikatory i nazwy"), unique && ids.size() >= 30);
+    press("Ctrl+A");
+    check(QStringLiteral("Ctrl+A zaznacza wszystkie"), m_mgr->selectedCount() == n);
+    press("Ctrl+Shift+A");
+    check(QStringLiteral("Ctrl+Shift+A odznacza"), m_mgr->selectedCount() == 0);
+    press("Space");
+    check(QStringLiteral("spacja zaznacza kanal aktywny"), m_mgr->selectedCount() == 1);
+    press("Ctrl+I");
+    check(QStringLiteral("Ctrl+I odwraca zaznaczenie"), m_mgr->selectedCount() == n - 1);
+    m_mgr->setActive(m_mgr->channels().at(0));
+    press("Right");
+    check(QStringLiteral("strzalka: nastepny kanal"), m_mgr->active() == m_mgr->channels().at(1));
+    press("Left");
+    check(QStringLiteral("strzalka: poprzedni kanal"), m_mgr->active() == m_mgr->channels().at(0));
+    // zmiana przypisania: nowy klawisz dziala, stary nie; klawisz zabrany innemu dzialaniu
+    const QStringList lost = m_keys.assign(QStringLiteral("selectAll"), QKeySequence(Qt::Key_F5));
+    press("Ctrl+Shift+A");
+    press("Ctrl+A");
+    check(QStringLiteral("po zmianie stary klawisz nie dziala"), m_mgr->selectedCount() == 0 && lost.isEmpty());
+    press("F5");
+    check(QStringLiteral("po zmianie nowy klawisz dziala"), m_mgr->selectedCount() == n);
+    const QStringList stolen = m_keys.assign(QStringLiteral("selectNone"), QKeySequence(Qt::Key_F5));
+    press("F5");
+    check(QStringLiteral("klawisz przechodzi do nowego dzialania"), stolen.size() == 1 && m_keys.keys(QStringLiteral("selectAll")).isEmpty() && m_mgr->selectedCount() == 0);
+    // zapis i odczyt (osobny profil)
+    {
+        QSettings s(ChannelManager::settingsOrg(), QStringLiteral("IsoRecorder"));
+        m_keys.save(s);
+        s.sync();
+    }
+    loadShortcuts();
+    check(QStringLiteral("zapis i odczyt przypisan"), m_keys.keys(QStringLiteral("selectNone")) == QList<QKeySequence>{QKeySequence(Qt::Key_F5)} &&
+              m_keys.keys(QStringLiteral("selectAll")).isEmpty() && m_keys.keys(QStringLiteral("rec")) == QList<QKeySequence>{QKeySequence(Qt::Key_R)});
+    m_keys.reset();
+    {
+        QSettings s(ChannelManager::settingsOrg(), QStringLiteral("IsoRecorder"));
+        m_keys.save(s);
+        check(QStringLiteral("domyslne nie sa zapisywane"), !s.contains(QStringLiteral("shortcuts/selectNone")) && !s.contains(QStringLiteral("shortcuts/selectAll")));
+    }
+    press("Ctrl+A");
+    check(QStringLiteral("po przywroceniu domyslnych Ctrl+A dziala"), m_mgr->selectedCount() == n);
+    // edytor z okna Settings
+    ShortcutEditor editor(m_keys);
+    auto* table = editor.findChild<QTableWidget*>(QStringLiteral("shortcutTable"));
+    auto* field = editor.findChild<QKeySequenceEdit*>(QStringLiteral("shortcutEdit"));
+    check(QStringLiteral("edytor: tabela ze wszystkimi dzialaniami"), table && field && table->rowCount() == m_keys.actions().size());
+    if (table && field) {
+        table->selectRow(0);
+        field->setKeySequence(QKeySequence(Qt::Key_F9));
+        emit field->editingFinished();
+        check(QStringLiteral("edytor: przypisanie nowego klawisza"), editor.map().keys(QStringLiteral("rec")) == QList<QKeySequence>{QKeySequence(Qt::Key_F9)});
+    }
+    if (report) *report = out;
+    return bad;
 }
 
 // ---------------------------------------------------------------- sesja i lista kanalow

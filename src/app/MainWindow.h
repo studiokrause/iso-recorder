@@ -3,6 +3,8 @@
 #include <QPointer>
 #include <QWidget>
 
+#include "Shortcuts.h"
+
 class ChannelGrid;
 class ChannelList;
 class QButtonGroup;
@@ -29,6 +31,8 @@ public:
     void setView(int view);                 // 2, 3, 4 = siatka n x n; 0 = lista
     int view() const { return m_view; }
     void setRemote(RemoteControl* r) { m_remote = r; }      // dla okna Settings (MIDI learn)
+    static QList<ShortcutMap::Action> shortcutActions();     // dzialania ze skrotami i ich domyslne klawisze
+    int keysSelfTest(QString* report);                       // skroty na zywych kanalach; liczba bledow
 
 signals:
     void viewChanged(int view);
@@ -56,6 +60,8 @@ private:
     void showEventLog();
     void showSettings();
     void showRecordings(QWidget* anchor);
+    void loadShortcuts();
+    bool runShortcut(const QString& id);
     // lista kanalow
     void refreshSession();
     void renameSession();
@@ -74,6 +80,7 @@ private:
     ChannelList* m_list = nullptr;
     int m_view = 4;
     QPointer<RemoteControl> m_remote;
+    ShortcutMap m_keys;
     QStackedWidget* m_views = nullptr;
     QButtonGroup* m_viewGroup = nullptr;
     Inspector* m_inspector;

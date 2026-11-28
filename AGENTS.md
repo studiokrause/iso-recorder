@@ -51,6 +51,10 @@ z tłumaczeniami PL, DE, ES, IT, FR.
   (dwuklik), kolejność kanałów tylko przeciąganiem (kafle i wiersze listy; przycisków MOVE UP/DOWN nie ma od 2.3), okno Disks z testem prędkości zapisu, 6 języków.
 - **Odporność**: start i stop kanału mają limit czasu — źródło, które nie odpowiada, nie zawiesza programu.
 
+Skróty klawiszowe (dodane do 3.5): `app/Shortcuts.*` (`ShortcutMap` + `ShortcutEditor`), lista działań i domyślne
+klawisze w `MainWindow::shortcutActions()`, wykonanie w `runShortcut`. Zapis tylko różnic od domyślnych
+(`shortcuts/<id>` w ustawieniach). Test: `--demo 3 --keys-selftest` z `ISOREC_PROFILE`. Ten sam kod ma ISO GrowingPlayer.
+
 ## 4. Następne etapy (rozdz. 6 `instrukcja_koncowa.md`)
 
 | Wersja | Zakres |

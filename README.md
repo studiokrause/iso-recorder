@@ -147,8 +147,9 @@ using a dedicated gateway.
 - Inspector with Input, Output and Scheduler tabs for the active channel; settings that must not change mid-take are
   locked while recording.
 - Channel lists saved to and loaded from files; default container, codec, encoder, resolution and frame rate for new channels.
-- Keyboard shortcuts: `R` record, `P` pause, `S` stop, `X` split, `Ctrl+A` select all, `Ctrl+S` save the list, arrow
-  keys change the active channel. Double-click a picture for the full-size preview.
+- **Editable keyboard shortcuts** (Settings → Keyboard shortcuts). Defaults: `R` record, `P` pause, `S` stop, `X`
+  split, `Ctrl+A` select all, `Ctrl+S` save the list, arrow keys change the active channel. Actions on the selected
+  channels, views, listening and the windows can get keys of their own. Double-click a picture for the full-size preview.
 
 ## Testing
 

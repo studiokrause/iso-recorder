@@ -5,6 +5,7 @@
 #include "RemoteControl.h"
 
 class QCheckBox;
+class ShortcutEditor;
 class QComboBox;
 class QLineEdit;
 class QSpinBox;
@@ -53,6 +54,7 @@ private:
     QTableWidget* m_midiTable = nullptr;
     QPushButton* m_learnButton = nullptr;
     QTimer* m_learnTimer = nullptr;
+    ShortcutEditor* m_shortcuts = nullptr;
 };
 
 // Opis zmiennych szablonu nazwy (podpowiedz przy etykietach "Name template").

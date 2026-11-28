@@ -14,13 +14,17 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QScreen>
+#include <QSettings>
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QStandardItemModel>
 #include <QVBoxLayout>
 
+#include "app/MainWindow.h"
 #include "app/RemoteControl.h"
+#include "app/Shortcuts.h"
 #include "core/AppSettings.h"
+#include "core/ChannelManager.h"
 #include "core/Lang.h"
 #include "media/Devices.h"
 #include "media/EncoderFactory.h"
@@ -277,6 +281,17 @@ SettingsDialog::SettingsDialog(QWidget* parent, RemoteControl* remote) : QDialog
     row(T("After a source change"), m_rename);
     v->addLayout(g);
 
+    // ---- skroty klawiszowe
+    v->addWidget(heading(T("Keyboard shortcuts")));
+    v->addWidget(note(T("Keys that work in the main window. One key combination runs one action. Applied when you press OK.")));
+    {
+        ShortcutMap keys(MainWindow::shortcutActions());
+        QSettings store(ChannelManager::settingsOrg(), QStringLiteral("IsoRecorder"));
+        keys.load(store);
+        m_shortcuts = new ShortcutEditor(keys);
+        v->addWidget(m_shortcuts);
+    }
+
     // ---- zdalne sterowanie
     v->addWidget(heading(T("Remote control")));
     v->addWidget(note(T("Control recording from OSC software, a MIDI controller or Bitfocus Companion (Stream Deck). "
@@ -427,6 +442,8 @@ void SettingsDialog::save() {
     rc.midiChannel = m_midiChannel->value();
     rc.midiMap = RemoteControl::serializeBindings(m_bindings);
     AppSettings::setRemoteConfig(rc);
+    QSettings store(ChannelManager::settingsOrg(), QStringLiteral("IsoRecorder"));
+    m_shortcuts->map().save(store);
 }
 
 void SettingsDialog::fillMidiTable() {

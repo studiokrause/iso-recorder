@@ -4,6 +4,12 @@ Numeracja: 0.1, 0.2, … (plan wersji: `instrukcja_koncowa.md`, rozdz. 6).
 
 ## 3.5
 
+- **Skróty klawiszowe z edycją**: Settings → **Keyboard shortcuts**. Lista 32 działań (transport kanału aktywnego i
+  zaznaczonych, zaznaczanie, listy kanałów, widoki, odsłuch, okna); wybierz działanie, kliknij pole i naciśnij nową
+  kombinację, **Remove shortcut** usuwa skrót, **Reset all to default** przywraca domyślne. Jedna kombinacja — jedno
+  działanie. Domyślne klawisze jak dotąd (`R`, `P`, `S`, `X`, spacja, strzałki, `Ctrl+A`, `Ctrl+S`…); różnica: skrót
+  działa dokładnie dla przypisanej kombinacji (np. `Shift+R` nie nagrywa, dopóki go nie przypiszesz). Test:
+  `--keys-selftest`. Dodane do 3.5 bez zmiany numeru — pliki wydania 3.5 zostały podmienione.
 - **Ekran powitalny 3.5** (nowa grafika).
 - **Zdalne sterowanie: OSC, MIDI i Stream Deck (Bitfocus Companion).** Settings → Remote control (domyślnie wyłączone).
   - **OSC po UDP** (port domyślnie 8000): `/isorec/ch/N/rec|stop|pause|split|select[/on|/off]` dla kanałów 1–16,

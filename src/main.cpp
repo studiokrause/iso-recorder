@@ -80,6 +80,7 @@
 //                         kolejnosc kanalow na stdout, opcjonalny zrzut okna w trakcie przeciagania
 //   --shot-big N plik.png zrzut okna duzego podgladu kanalu N (od 1), otwartego dwuklikiem w kafel;
 //                         z --big-rec: przed zrzutem klikniecie REC w oknie, po zrzucie STOP (stan kanalu na stdout)
+//   --keys-selftest       z --demo 3 i ISOREC_PROFILE: sprawdzenie skrotow klawiszowych (kod wyjscia = liczba bledow)
 //   --sched-selftest      sprawdzenie obliczen harmonogramu (zmiana czasu, okna przez polnoc); kod wyjscia = liczba bledow
 //   --sched-in S --sched-len L  kanaly --demo dostaja regule jednorazowa: start za S sekund (ujemne = okno juz trwa), L sekund
 //   --sched-split N       ta regula dzieli plik co N sekund;  --sched-nocatch: bez spoznionego startu
@@ -120,7 +121,7 @@ int main(int argc, char* argv[]) {
     QApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
     const QStringList args = app.arguments();
     // Uruchomienie sterowane argumentami (zrzuty, testy) konczy sie samo - bez pytan o zapis listy.
-    for (const char* a : {"--screenshot", "--save-list", "--save-list-real", "--rec-test", "--shot-big", "--shot-disks", "--drag-test", "--shot-combo", "--shot-log", "--shot-settings", "--list-ndi", "--shot-rename", "--quit-after", "--recover", "--remote-selftest"})
+    for (const char* a : {"--screenshot", "--save-list", "--save-list-real", "--rec-test", "--shot-big", "--shot-disks", "--drag-test", "--shot-combo", "--shot-log", "--shot-settings", "--list-ndi", "--shot-rename", "--quit-after", "--recover", "--remote-selftest", "--keys-selftest"})
         if (args.contains(QLatin1String(a))) app.setProperty("automation", true);
 
     // Ekran powitalny: 2,5 s przy zwyklym uruchomieniu. Nie pojawia sie w trybach testowych i narzedziowych.
@@ -744,6 +745,16 @@ int main(int argc, char* argv[]) {
             QTimer::singleShot(2500, &manager, [&remote] {
                 QString report;
                 const int bad = remote.selfTest(&report);
+                const QByteArray utf8 = report.toUtf8() + "errors=" + QByteArray::number(bad) + "\n";
+                fwrite(utf8.constData(), 1, size_t(utf8.size()), stdout);
+                fflush(stdout);
+                QApplication::exit(bad);
+            });
+        if (args.contains(QStringLiteral("--keys-selftest")))
+            QTimer::singleShot(1500, &manager, [&w] {
+                QString report;
+                // zapisuje skroty w ustawieniach - tylko w osobnym profilu testowym
+                const int bad = qEnvironmentVariableIsEmpty("ISOREC_PROFILE") ? -1 : w->keysSelfTest(&report);
                 const QByteArray utf8 = report.toUtf8() + "errors=" + QByteArray::number(bad) + "\n";
                 fwrite(utf8.constData(), 1, size_t(utf8.size()), stdout);
                 fflush(stdout);
